@@ -64,6 +64,9 @@ def cdf_differential_decay_width(final_energy, initial_energy, discrete_continuu
     # Normalize
     cdf = cdf_val / cdf_norm
 
+    # This is needed because fsolve is fucking retarded
+    cdf = np.where(final_energy > initial_energy, -1, cdf)
+
     return cdf
 
 def decay_width_to_discrete(initial_energy, discrete_energies, discrete_continuum_boundary, disp_parameter):
@@ -76,15 +79,25 @@ def decay_width_to_discrete(initial_energy, discrete_energies, discrete_continuu
 def inverse_cdf_differential_decay_width(cdf_value, initial_energy, discrete_continuum_boundary, disp_parameter):
     
     fun = lambda final_energy:cdf_differential_decay_width(final_energy, initial_energy, discrete_continuum_boundary, disp_parameter) - cdf_value
-
     # Initial guess
-    x0 = jnp.array([0.5 * (initial_energy + discrete_continuum_boundary)])
+    x0 = np.array([0.5 * (initial_energy + discrete_continuum_boundary)])
     #print(x0)
-
     # Find the root (i.e. the inverse CDF value)
     root_result = fsolve(fun, x0)
 
     return root_result[0]
+
+    # More rudimentary approach
+    # energies = np.linspace(discrete_continuum_boundary, initial_energy, 10000)
+    # cdf_array = cdf_differential_decay_width(energies, initial_energy, discrete_continuum_boundary, disp_parameter)
+    # e_larger = energies[cdf_array >= cdf_value]
+    # e_smaller = energies[cdf_array < cdf_value]
+    # inverse_1 = e_larger[0]
+    # inverse_2 = e_smaller[-1]
+    
+    # print(root_result[0], (inverse_1 + inverse_2)/2, "cdf_value", cdf_value)
+
+    # return (inverse_1 + inverse_2)/2
 
 # Inverse CDF contemplating the possibility of the decay to a discrete level (NUMPY VERSION)
 def spicy_inverse_cdf_differential_decay_width(cdf_value, initial_energy, discrete_energies, discrete_continuum_boundary, disp_parameter):
