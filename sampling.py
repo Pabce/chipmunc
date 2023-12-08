@@ -101,14 +101,14 @@ def get_discrete_tree_head(continuum_energy, meta_params, params):
     # The probability of going to an individual discrete state is just integrating the transition strength
     # over a delta. That is:
 
-    discrete_levels = jnp.arange(meta_params['discrete_level_number'])
+    #discrete_levels = jnp.arange(meta_params['discrete_level_number'])
     discrete_energies = meta_params['discrete_energies']
     total_decay_width_discrete = jnp.sum(transition_strength(discrete_energies, continuum_energy, params))
 
     continuum_to_discrete_decay_probabilities =\
           transition_strength(discrete_energies, continuum_energy, params) / total_decay_width_discrete
 
-    return discrete_levels, jnp.array(continuum_to_discrete_decay_probabilities)
+    return jnp.array(continuum_to_discrete_decay_probabilities)
 
 
 def get_discrete_tree_body(meta_params, params):
@@ -142,7 +142,7 @@ def get_discrete_tree_body(meta_params, params):
     
         discrete_path_probabilities.append(discrete_path_probability)
 
-    return discrete_paths, np.array(discrete_path_probabilities)
+    return np.array(discrete_path_probabilities), discrete_paths
 
 
 
@@ -151,8 +151,8 @@ def get_full_discrete_tree(continuum_energy, tree_body, meta_params, params):
     Assemble the full discrete tree from a continuum energy and body.
     '''
 
-    discrete_paths, discrete_path_probs_body = tree_body
-    first_discrete_levels, first_discrete_level_probs = get_discrete_tree_head(continuum_energy, meta_params, params)
+    discrete_path_probs_body, discrete_paths = tree_body
+    first_discrete_level_probs = get_discrete_tree_head(continuum_energy, meta_params, params)
 
     # full_discrete_path_probs = jnp.zeros(len(discrete_paths))
 
@@ -162,10 +162,10 @@ def get_full_discrete_tree(continuum_energy, tree_body, meta_params, params):
 
     full_discrete_path_probs = discrete_path_probs_body * first_discrete_level_probs[discrete_paths[:, 0]]
 
-    return discrete_paths, full_discrete_path_probs
+    return full_discrete_path_probs, discrete_paths
 
 # TODO: Fix JIT issues and add it
-get_full_discrete_tree_vmap = vmap(get_full_discrete_tree, in_axes=(0, None, None, None), out_axes=(None, 0))
+get_full_discrete_tree_vmap = vmap(get_full_discrete_tree, in_axes=(0, None, None, None), out_axes=(0, None))
    
 
 # obo = one by one
@@ -178,7 +178,7 @@ def sample_discrete_path_obo(continuum_energy, meta_params, params, key):
     discrete_decay_widths = meta_params['discrete_decay_widths']
 
     # Get the first level probabilities
-    _, first_discrete_level_probs = get_discrete_tree_head(continuum_energy, meta_params, params)
+    first_discrete_level_probs = get_discrete_tree_head(continuum_energy, meta_params, params)
     # Sample the first level (sum should already be 1, but we normalise for tolerance issues)
     first_discrete_level = random.choice(subkey, len(first_discrete_level_probs), p=first_discrete_level_probs/jnp.sum(first_discrete_level_probs))
 
@@ -208,7 +208,7 @@ def sample_discrete_path(continuum_energy, full_tree, meta_params, params, key):
     Given a final continuum energy (vector), and a discrete tree, sample a discrete path.
     '''
 
-    discrete_paths, discrete_path_probs = full_tree
+    discrete_path_probs, discrete_paths = full_tree
     discrete_energies = meta_params['discrete_energies']
 
     num_samples = len(continuum_energy)
