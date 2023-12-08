@@ -27,6 +27,7 @@ def sample_continuum_path(initial_energy, meta_params, params, key, sample_num=1
     continuum_cut_gradients = {param: np.zeros((sample_num * passes, steps)) for param in params}
 
     last_energies = np.zeros((sample_num * passes))
+    last_energies_idx = np.zeros((sample_num * passes), dtype=int)
 
 
     # We do several "passes" as JAX can't parallelise above a given number of steps
@@ -76,6 +77,7 @@ def sample_continuum_path(initial_energy, meta_params, params, key, sample_num=1
             continuum_cuts[n * sample_num : (n + 1) * sample_num, i] = continuum_cut
 
             last_energies[n * sample_num : (n + 1) * sample_num] = np.where(next_energy == -1, last_energies, next_energy)
+            last_energies_idx[n * sample_num : (n + 1) * sample_num] = np.where(next_energy == -1, last_energies_idx, i)
 
             for param in params:
                 energy_theta_gradients[param][n * sample_num : (n + 1) * sample_num, i] = grad_theta_energy_val[param]
@@ -88,7 +90,7 @@ def sample_continuum_path(initial_energy, meta_params, params, key, sample_num=1
             grad_theta_energy_val_prev = grad_theta_energy_val
             current_energy = next_energy
 
-    return energies, last_energies, continuum_cuts, energy_theta_gradients, energy_total_theta_gradients, energy_Ei_gradients, continuum_cut_gradients
+    return energies, last_energies, last_energies_idx, continuum_cuts, energy_theta_gradients, energy_total_theta_gradients, energy_Ei_gradients, continuum_cut_gradients
 
 
 def get_discrete_tree_head(continuum_energy, meta_params, params):
