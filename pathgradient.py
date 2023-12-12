@@ -118,9 +118,9 @@ def inverse_cdf_differential_decay_width(cdf_value, initial_energy, meta_params,
 
     # return (inverse_1 + inverse_2)/2
 
-def fast_cdf_inverter(cdf_value, initial_energy, meta_params, params):
+def fast_cdf_inverter(cdf_value, initial_energy, meta_params, params, fun):
     
-    fun = jax_cdf_minimum
+    #fun = jax_cdf_minimum
 
     #x0 = jnp.array([0.5 * (initial_energy + discrete_continuum_boundary)])
     discrete_continuum_boundary = meta_params["discrete_continuum_boundary"]
@@ -135,26 +135,25 @@ def fast_cdf_inverter(cdf_value, initial_energy, meta_params, params):
     #return root.params, root.state
     return root.params
 
-fast_cdf_inverter_jit = jit(fast_cdf_inverter)
-fast_cdf_inverter_vmap = vmap(fast_cdf_inverter_jit, in_axes=(0, 0, None, None), out_axes=0)
+fast_cdf_inverter_jit = jit(fast_cdf_inverter, static_argnums=(4))
+fast_cdf_inverter_vmap = jit(vmap(fast_cdf_inverter_jit, in_axes=(0, 0, None, None, None), out_axes=0), static_argnums=(4))
 
-
-def bis(x, y):
-    return x**3 - y    
+# fast_cdf_inverter_vmap = vmap(fast_cdf_inverter, in_axes=(0, 0, None, None, None), out_axes=0)
+# fast_cdf_inverter_vmap = jit(fast_cdf_inverter_vmap, static_argnums=(4))
 
 # Inverse CDF contemplating the possibility of the decay to a discrete level (NUMPY VERSION)
-def spicy_inverse_cdf_differential_decay_width(cdf_value, initial_energy, meta_params, params,
+def spicy_inverse_cdf_differential_decay_width(cdf_value, initial_energy, meta_params, params, cdf_root_fun,
                                                 use_continuum_cut=True, verbose=0):
     # If cdf_value is a scalar, make it an array of length 1
-    if np.isscalar(cdf_value):
+    if jnp.isscalar(cdf_value):
         cdf_value = np.array([cdf_value])
     # If initial_energy is a scalar, make it an array of length of cdf_value
     if len(np.array([initial_energy])) == 1:
         initial_energy = np.ones(len(cdf_value)) * initial_energy
 
     discrete_continuum_boundary = meta_params["discrete_continuum_boundary"]
-    full_energies = np.linspace(discrete_continuum_boundary, initial_energy, 5000)
-    cdf_norm = np.trapz(np.array(differential_decay_width(full_energies, initial_energy, meta_params, params)), full_energies, axis=0)
+    full_energies = jnp.linspace(discrete_continuum_boundary, initial_energy, 5000)
+    cdf_norm = jnp.trapz(np.array(differential_decay_width(full_energies, initial_energy, meta_params, params)), full_energies, axis=0)
 
 
     discrete_energies = meta_params["discrete_energies"]
@@ -173,10 +172,10 @@ def spicy_inverse_cdf_differential_decay_width(cdf_value, initial_energy, meta_p
 
     continuum_cut = stay_in_continuum_probability
     if not use_continuum_cut:
-        root = fast_cdf_inverter_vmap(cdf_value * continuum_cut, initial_energy, meta_params, params)
+        root = fast_cdf_inverter_vmap(cdf_value * continuum_cut, initial_energy, meta_params, params, cdf_root_fun)
         continuum_cut = np.ones(len(cdf_value), dtype=np.float32)
     else:
-        root = jnp.where(cdf_value > continuum_cut, root, fast_cdf_inverter_vmap(cdf_value, initial_energy, meta_params, params))
+        root = jnp.where(cdf_value > continuum_cut, root, fast_cdf_inverter_vmap(cdf_value, initial_energy, meta_params, params, cdf_root_fun))
 
     # TODO: Get rid of the weird mix of JAX and non-JAX functions
     root = jnp.where(initial_energy > discrete_continuum_boundary, root, -1.0)
