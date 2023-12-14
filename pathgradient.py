@@ -132,6 +132,9 @@ def fast_cdf_inverter(cdf_value, initial_energy, meta_params, params, fun):
     # solver = jaxopt.ScipyRootFinding(optimality_fun=fun, method='hybr', jit=True)
     # root = solver.run(x0, cdf_value, initial_energy, discrete_energies, discrete_continuum_boundary, disp_parameter)
 
+    # solver = jaxopt.Broyden(fun=fun, jit=True)
+    # root = solver.run(x0, cdf_value, initial_energy, meta_params, params)
+
     #return root.params, root.state
     return root.params
 
@@ -145,35 +148,35 @@ fast_cdf_inverter_vmap = jit(vmap(fast_cdf_inverter_jit, in_axes=(0, 0, None, No
 def spicy_inverse_cdf_differential_decay_width(cdf_value, initial_energy, meta_params, params, cdf_root_fun,
                                                 use_continuum_cut=True, verbose=0):
     # If cdf_value is a scalar, make it an array of length 1
-    if jnp.isscalar(cdf_value):
-        cdf_value = np.array([cdf_value])
-    # If initial_energy is a scalar, make it an array of length of cdf_value
-    if len(np.array([initial_energy])) == 1:
-        initial_energy = np.ones(len(cdf_value)) * initial_energy
+    # if jnp.isscalar(cdf_value):
+    #     cdf_value = np.array([cdf_value])
+    # # If initial_energy is a scalar, make it an array of length of cdf_value
+    # if len(np.array([initial_energy])) == 1:
+    #     initial_energy = np.ones(len(cdf_value)) * initial_energy
 
     discrete_continuum_boundary = meta_params["discrete_continuum_boundary"]
     full_energies = jnp.linspace(discrete_continuum_boundary, initial_energy, 5000)
-    cdf_norm = jnp.trapz(np.array(differential_decay_width(full_energies, initial_energy, meta_params, params)), full_energies, axis=0)
+    cdf_norm = jnp.trapz(differential_decay_width(full_energies, initial_energy, meta_params, params), full_energies, axis=0)
 
 
     discrete_energies = meta_params["discrete_energies"]
     total_decay_width_to_discrete = np.zeros(len(cdf_value))
     for i in range(len(discrete_energies)):
-        total_decay_width_to_discrete += np.array(transition_strength(discrete_energies[i], initial_energy, params))
+        total_decay_width_to_discrete += transition_strength(discrete_energies[i], initial_energy, params)
 
     stay_in_continuum_probability = cdf_norm / (cdf_norm + total_decay_width_to_discrete)
     #go_to_discrete_probability = total_decay_width_to_discrete / (cdf_norm + total_decay_width_to_discrete)
 
     # The "continuum cut" is the value of the CDF that separates the discrete and continuum parts.
     # As we're sampling from a uniform distribution, this is just the probability of staying in the continuum
-    root = np.zeros_like(cdf_value, dtype=np.float32) - 1.0
+    root = jnp.zeros_like(cdf_value, dtype=np.float32) - 1.0
     
     start_time = time.time()
 
     continuum_cut = stay_in_continuum_probability
     if not use_continuum_cut:
         root = fast_cdf_inverter_vmap(cdf_value * continuum_cut, initial_energy, meta_params, params, cdf_root_fun)
-        continuum_cut = np.ones(len(cdf_value), dtype=np.float32)
+        continuum_cut = jnp.ones(len(cdf_value), dtype=np.float32)
     else:
         root = jnp.where(cdf_value > continuum_cut, root, fast_cdf_inverter_vmap(cdf_value, initial_energy, meta_params, params, cdf_root_fun))
 
@@ -189,6 +192,8 @@ def spicy_inverse_cdf_differential_decay_width(cdf_value, initial_energy, meta_p
         continuum_cut = continuum_cut[0]
 
     return root, continuum_cut
+
+spicy_inverse_cdf_differential_decay_width_jit = jit(spicy_inverse_cdf_differential_decay_width, static_argnums=(4, 5, 6))
 
 # -------------------------------------------------------------------------
 
@@ -299,11 +304,11 @@ def grad_Ei_x(final_energy, initial_energy, meta_params, params):
 
 #     return total_grad_theta_x_val
 
-grad_theta_x_vmap = vmap(jit(grad_theta_x), in_axes=(0, 0, None, None), out_axes=0)
-grad_Ei_x_vmap = vmap(jit(grad_Ei_x), in_axes=(0, 0, None, None), out_axes=0)
+grad_theta_x_vmap = jit(vmap(jit(grad_theta_x), in_axes=(0, 0, None, None), out_axes=0))
+grad_Ei_x_vmap = jit(vmap(jit(grad_Ei_x), in_axes=(0, 0, None, None), out_axes=0))
 
 
 # And the gradients of the continuum cut
 # Parameters (theta)
 grad_theta_continuum_cut = jit(jacfwd(jax_continuum_cut, argnums=2))
-grad_theta_continuum_cut_vmap = vmap(grad_theta_continuum_cut, in_axes=(0, None, None), out_axes=0)
+grad_theta_continuum_cut_vmap = jit(vmap(grad_theta_continuum_cut, in_axes=(0, None, None), out_axes=0))

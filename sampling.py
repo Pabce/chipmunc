@@ -2,7 +2,7 @@ from pathgradient import *
 from jax import random, grad, jit, vmap, pmap
 
 
-def sample_continuum_path(initial_energy, meta_params, params, key, sample_num=100, passes=1, 
+def sample_continuum_path(initial_energy, meta_params, params, key, cdf_root_fun, sample_num=100, passes=1, 
                           max_continuum_steps=5, enforce_decay_to_discrete=False, use_continuum_cut=True):
     '''
     Sample a deexcitation path with a maximum number of steps in the continuum, computing the 
@@ -48,9 +48,9 @@ def sample_continuum_path(initial_energy, meta_params, params, key, sample_num=1
             random_uniform = random.uniform(subkeys[i+1], (sample_num,))
 
             # Sample the next energy
-            next_energy, continuum_cut = spicy_inverse_cdf_differential_decay_width(
+            next_energy, continuum_cut = spicy_inverse_cdf_differential_decay_width_jit(
                                                         random_uniform, current_energy, 
-                                                        meta_params, params,
+                                                        meta_params, params, cdf_root_fun,
                                                         use_continuum_cut=use_continuum_cut,
                                                         verbose=0)
             
@@ -146,7 +146,7 @@ def get_discrete_tree_body(meta_params, params):
 
     return np.array(discrete_path_probabilities), discrete_paths
 
-
+#get_discrete_tree_body = jit(get_discrete_tree_body)
 
 def get_full_discrete_tree(continuum_energy, tree_body, meta_params, params):
     '''
@@ -211,11 +211,15 @@ def sample_discrete_path(continuum_energy, full_tree, meta_params, params, key):
     '''
 
     discrete_path_probs, discrete_paths = full_tree
+
+    # Hack for jax-metal
+    discrete_path_probs = np.array(discrete_path_probs)
+
     discrete_energies = meta_params['discrete_energies']
 
     num_samples = len(continuum_energy)
     random_numbers = random.uniform(key, shape=(num_samples,))
-    discrete_path_probs_cumsum = jnp.cumsum(discrete_path_probs, axis=1)
+    discrete_path_probs_cumsum = np.cumsum(discrete_path_probs, axis=1)
 
     path_indices = np.array([np.searchsorted(row, rnd_num) for row, rnd_num in zip(discrete_path_probs_cumsum, random_numbers)])
 
@@ -226,6 +230,11 @@ def stitch_paths(raw_continuum_paths, raw_discrete_paths):
     '''
     Given a set of (energy) continuum paths and discrete paths, stitch them together.
     '''
+
+    # Hack for jax-metal
+    raw_continuum_paths = np.array(raw_continuum_paths)
+    raw_discrete_paths = np.array(raw_discrete_paths)
+
     full_energy_paths = []
     for i, continuum_energy_path in enumerate(raw_continuum_paths):
         continuum_energy_path = continuum_energy_path[: np.argwhere(continuum_energy_path == -1)[0][0]]
