@@ -34,6 +34,10 @@ META_PARAMS = {"discrete_continuum_boundary": DISCRETE_CONTINUUM_BOUNDARY,
                 "discrete_level_number": DISCRETE_LEVEL_NUMBER,
                 "discrete_decay_widths": DISCRETE_DECAY_WIDTHS}
 
+NOMINAL_PARAMS = {"disp_parameter": 0.01,
+                    "alpha": 1.0,
+                    "beta": 10.0}
+
 # Define the continuum energy levels via an event density function
 # Backshifted Fermi Gas
 def rho_f(energy, meta_params):
@@ -41,7 +45,7 @@ def rho_f(energy, meta_params):
     return 1/(1 + jnp.exp((energy - discrete_continuum_boundary)/1.1))
 
 def rho_0(energy, params):
-    return params["disp_parameter"]
+    return params["disp_parameter"] * 0.01 # TODO: no hardcoding
 
 def level_density(energy, meta_params, params):
     return 100 * (1/rho_f(energy, meta_params) + 1/rho_0(energy, params))**(-1)
@@ -51,8 +55,8 @@ def level_density(energy, meta_params, params):
 def transition_strength(final_energy, initial_energy, params):
     gamma_energy = initial_energy - final_energy
 
-    alpha = params["alpha"]
-    beta = params["beta"]
+    alpha = params["alpha"] * 1.0 # TODO: no hardcoding
+    beta = params["beta"] * 10.0
 
     ts = jnp.sin(gamma_energy * alpha)**2 * 5.0 * jnp.exp(-gamma_energy/beta)
     ts = jnp.where(gamma_energy < 0, 0.0, ts)
