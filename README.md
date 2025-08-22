@@ -138,8 +138,3 @@ All of these live in `pathgradient.py` and are easy to change for different phys
 - JAX + control flow: the code balances NumPy and JAX where convenient. Some helpers convert arrays back and forth to work around device constraints – this is intentional for simplicity.
 - Root finding for the inverse-CDF uses `jaxopt.Bisection` by default; other solvers are easy to swap in.
 - The gradients of the implicit inverse-CDF are computed via `jacfwd` on the CDF and standard implicit differentiation.
-
-
-## Disclaimer
-
-This is research code for experimentation and education. Expect rough edges and changing APIs. Bug reports and suggestions are welcome.
