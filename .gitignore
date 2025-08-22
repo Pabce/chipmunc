@@ -1,0 +1,14 @@
+pickles
+*.pcl
+*.pyc
+__pycache__/# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*..class
+
+# Jupyter and temp
+.ipynb_checkpoints/
+*.ipynb~
+
+# macOS
+.DS_Store
